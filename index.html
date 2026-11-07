@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hazri Attendance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: venue screen and attendee phone side by side, organiser board below; stacks on phones */
+:root {
+  --bg: #eef2f0;
+  --surface: #ffffff;
+  --ink: #12201b;
+  --muted: #5b6b64;
+  --line: #d3dcd8;
+  --accent: #0a6b5a;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9eee8;
+  --ok: #1a7f46;
+  --warn: #a15c00;
+  --warn-soft: #fbeccf;
+  --bad: #b3261e;
+  --bad-soft: #f8dcd9;
+  --qr-bg: #ffffff;
+  --qr-fg: #12201b;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1512; --surface: #15211c; --ink: #e6efeb; --muted: #93a79f; --line: #27382f;
+    --accent: #3fc3a6; --accent-ink: #06231c; --accent-soft: #15372f;
+    --ok: #55c98a; --warn: #f0b24f; --warn-soft: #3a2c10; --bad: #ff8a80; --bad-soft: #3d1b18;
+    --qr-bg: #e6efeb; --qr-fg: #0d1512;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1512; --surface: #15211c; --ink: #e6efeb; --muted: #93a79f; --line: #27382f;
+  --accent: #3fc3a6; --accent-ink: #06231c; --accent-soft: #15372f;
+  --ok: #55c98a; --warn: #f0b24f; --warn-soft: #3a2c10; --bad: #ff8a80; --bad-soft: #3d1b18;
+  --qr-bg: #e6efeb; --qr-fg: #0d1512;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+p { margin: 0; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+header.top { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+header.top h1 { font-size: clamp(30px, 6vw, 48px); line-height: 1.05; font-weight: 700; }
+header.top h1 span { color: var(--accent); background: linear-gradient(var(--accent), var(--accent)) 0 100% / 100% 3px no-repeat; padding-bottom: 2px; animation: underline 0.9s 0.9s cubic-bezier(.2,.7,.2,1) backwards; }
+header.top p { max-width: 62ch; color: var(--muted); font-size: 16px; }
+.tag { display: inline-flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.tag b { background: var(--accent-soft); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.panel-head h2 { font-size: 20px; }
+
+/* venue screen */
+.venue { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; }
+@media (max-width: 520px) { .venue { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; } }
+.qrbox { background: var(--qr-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--line); line-height: 0; position: relative; }
+.qrbox svg { width: 200px; height: 200px; display: block; }
+.venue-meta { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.countdown { display: flex; align-items: center; gap: 12px; }
+.ring { width: 56px; height: 56px; position: relative; flex: none; }
+.ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+.ring .n { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-mono); font-weight: 500; font-size: 17px; }
+.token { font-family: var(--f-mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); padding: 4px 8px; border-radius: 4px; overflow-wrap: anywhere; }
+.urlline { font-family: var(--f-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* phone */
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; }
+.phone { width: 100%; max-width: 340px; border: 8px solid var(--ink); border-radius: 30px; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; min-height: 560px; }
+.pbar { display: flex; justify-content: space-between; padding: 8px 16px 6px; font-size: 11px; font-family: var(--f-mono); color: var(--muted); }
+.pbody { padding: 8px 18px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.pbody h3 { font-size: 21px; line-height: 1.15; }
+.pbody .sub { color: var(--muted); font-size: 13.5px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+input[type="text"], input[type="tel"] {
+  font: inherit; font-family: var(--f-mono); font-size: 16px; padding: 11px 12px; border-radius: 6px;
+  border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); width: 100%;
+}
+input:focus-visible, button:focus-visible, .check:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn { font: inherit; font-weight: 600; font-size: 15px; padding: 12px 14px; border-radius: 6px; border: 1.5px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.small { font-size: 13px; padding: 8px 10px; width: auto; }
+.msg { padding: 10px 12px; border-radius: 6px; font-size: 13.5px; }
+.msg.bad { background: var(--bad-soft); color: var(--bad); }
+.msg.warn { background: var(--warn-soft); color: var(--warn); }
+.msg.ok { background: var(--accent-soft); color: var(--accent); }
+.hint { font-size: 12px; color: var(--muted); }
+.hint code, .sub code { font-family: var(--f-mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 3px; }
+.check { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1.5px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 13.5px; }
+.check input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--accent); flex: none; }
+.stepper { display: flex; align-items: center; gap: 0; border: 1.5px solid var(--line); border-radius: 6px; width: fit-content; }
+.stepper button { width: 44px; height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 22px; cursor: pointer; }
+.stepper output { min-width: 48px; text-align: center; font-family: var(--f-mono); font-size: 20px; }
+.receipt { border: 1.5px dashed var(--line); border-radius: 6px; padding: 12px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12.5px; }
+.receipt dt { color: var(--muted); }
+.receipt dd { margin: 0; font-family: var(--f-mono); overflow-wrap: anywhere; }
+.tick { width: 52px; height: 52px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+
+.demo-tools { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 8px; }
+.demo-tools .label { text-align: left; }
+.toolrow { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* board */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; border-left: 2px solid var(--line); }
+.kpi .v { font-family: var(--f-display); font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+.board-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 24px; }
+@media (max-width: 860px) { .board-grid { grid-template-columns: minmax(0, 1fr); } }
+.days { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; align-items: end; height: 200px; padding-top: 8px; border-bottom: 1px solid var(--line); }
+.day { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; height: 100%; min-width: 0; }
+.bars { display: flex; align-items: flex-end; gap: 3px; width: 100%; flex: 1; justify-content: center; }
+.bar { width: 40%; max-width: 22px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.bar.rsvp { background: var(--line); }
+.bar.act { background: var(--accent); }
+.bar.live { background: var(--accent); outline: 2px solid var(--accent-soft); }
+.daylbl { font-family: var(--f-mono); font-size: 11px; color: var(--muted); padding-top: 6px; }
+.daylbl.now { color: var(--accent); font-weight: 600; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.pill.ok { background: var(--accent-soft); color: var(--accent); }
+.pill.flag { background: var(--warn-soft); color: var(--warn); }
+.food { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--bg); border-radius: 6px; font-size: 13.5px; }
+
+/* controls */
+.controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+@media (max-width: 860px) { .controls { grid-template-columns: minmax(0, 1fr); } }
+.ctl { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--line); }
+.ctl:last-child { border-right: 0; }
+@media (max-width: 860px) { .ctl { border-right: 0; border-bottom: 1px solid var(--line); } .ctl:last-child { border-bottom: 0; } }
+.ctl h3 { font-size: 16px; }
+.ctl p { font-size: 13.5px; color: var(--muted); }
+.ctl .strength { font-size: 12px; font-weight: 600; color: var(--accent); }
+.cost { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; padding: 16px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cost b { font-family: var(--f-display); font-size: 22px; }
+.cost span { font-size: 13.5px; color: var(--muted); }
+/* entrance sequence: header, then venue + phone, then board; bars and numbers start when the board scrolls into view */
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+@keyframes pop { from { opacity: 0; transform: scale(0.92); } }
+@keyframes underline { from { background-size: 0% 3px; } }
+@keyframes sweep { 0% { top: 12px; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: calc(100% - 15px); opacity: 0; } }
+header.top > * { animation: rise 0.7s cubic-bezier(.2,.7,.2,1) backwards; }
+header.top > :nth-child(1) { animation-delay: 0.05s; }
+header.top > :nth-child(2) { animation-delay: 0.2s; }
+header.top > :nth-child(3) { animation-delay: 0.4s; }
+.stage > .panel { animation: rise 0.7s 0.55s cubic-bezier(.2,.7,.2,1) backwards; }
+.phone-col { animation: rise 0.8s 0.75s cubic-bezier(.2,.7,.2,1) backwards; }
+.wrap > .panel { animation: rise 0.7s 1s cubic-bezier(.2,.7,.2,1) backwards; }
+.wrap > section:last-child { animation: rise 0.7s 1.1s cubic-bezier(.2,.7,.2,1) backwards; }
+.qrbox { animation: pop 0.6s 0.8s cubic-bezier(.2,.8,.2,1) backwards; }
+.qrbox::after { content: ""; position: absolute; left: 8px; right: 8px; top: 12px; height: 3px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 12px var(--accent); opacity: 0; animation: sweep 1.3s 1.3s ease-in-out both; pointer-events: none; }
+.days .bar { transform-origin: bottom; transition: transform 0.9s cubic-bezier(.2,.8,.2,1); transition-delay: calc(var(--i, 0) * 70ms); }
+.days.pre .bar { transform: scaleY(0); }
+/* intro film: a self-playing walkthrough shown before the prototype */
+body.held .wrap *, body.held .wrap *::after { animation-play-state: paused !important; }
+@keyframes fmrise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes fmin { from { opacity: 0; } }
+@keyframes fmtype { from { width: 0; } }
+@keyframes fmdraw { from { stroke-dashoffset: 1; } }
+@keyframes fmpop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes fmgrow { from { transform: scaleY(0); } }
+@keyframes fmfill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes fmbob { 50% { transform: translateY(-4px); } }
+@keyframes fmflash { from { opacity: 0.15; } }
+@keyframes fmpress { 40% { transform: scale(0.95); } }
+@keyframes fmline { from { transform: scaleX(0); } }
+@keyframes fmring { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 150.8; } }
+@keyframes fmspin { from { transform: rotate(0deg); } }
+@keyframes fmcb { from { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); } }
+
+.fm { position: fixed; inset: 0; z-index: 100; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; gap: 12px; overflow: auto;
+  padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  animation: fmin 0.4s backwards; }
+.fm:focus { outline: none; }
+.fm-top { display: flex; gap: 6px; width: 100%; max-width: 1000px; margin: 0 auto; flex: none; }
+.fm-seg { flex: 1; height: 14px; padding: 0; border: 0; background: transparent; position: relative; cursor: pointer; }
+.fm-seg::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: 2px; background: var(--line); }
+.fm-seg i { position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; }
+.fm-seg.done i { transform: scaleX(1); }
+.fm-seg.cur i { animation: fmfill var(--dur) linear forwards; }
+.fm.paused .fm-seg.cur i, .fm.paused .fm-stage *, .fm.paused .fm-stage *::after { animation-play-state: paused !important; }
+.fm-seg:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.fm-main { flex: 1; display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 32px; align-items: center; width: 100%; max-width: 1000px; margin: 0 auto; padding-block: 8px; }
+@media (max-width: 760px) { .fm-main { grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; } }
+.fm-cap { display: flex; flex-direction: column; gap: 12px; animation: fmrise 0.6s backwards; }
+.fm-cap .label { color: var(--accent); }
+.fm-cap h2 { font-size: clamp(26px, 4.6vw, 40px); line-height: 1.08; }
+.fm-cap p { color: var(--muted); font-size: 16px; max-width: 44ch; }
+.fm-stage { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-width: 0; }
+.fm-bar { display: flex; gap: 8px; align-items: center; width: 100%; max-width: 1000px; margin: 0 auto; flex-wrap: wrap; flex: none; }
+.fm-bar .sp { flex: 1; }
+.fm-count { font-family: var(--f-mono); font-size: 12px; color: var(--muted); padding: 0 4px; }
+
+.fm-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; width: 100%; max-width: 400px; }
+
+/* scene 1: paper sheet */
+.srow { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.srow .nm { height: 8px; border-radius: 4px; background: var(--line); }
+.srow .sig { width: 90px; height: 22px; margin-left: auto; flex: none; }
+.sig path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: fmdraw 0.6s calc(var(--i) * 0.4s + 0.3s) backwards; }
+.queue { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.queue i { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); opacity: 0.55; animation: fmbob 1.4s calc(var(--q) * 0.09s) infinite; }
+.queue span { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.bignum { display: flex; flex-direction: column; align-items: center; }
+.bignum b { font-family: var(--f-display); font-size: clamp(44px, 9vw, 68px); line-height: 1; font-variant-numeric: tabular-nums; }
+.bignum span { color: var(--muted); font-size: 14px; }
+
+/* scene 2: the four steps */
+.flow { display: flex; width: 100%; max-width: 460px; }
+.node { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; flex: 1; animation: fmrise 0.5s calc(var(--i) * 0.45s + 0.2s) backwards; }
+.node b { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--f-mono); font-size: 18px; position: relative; z-index: 1; }
+.node span { font-size: 13px; font-weight: 600; text-align: center; }
+.node:not(:last-child)::after { content: ""; position: absolute; top: 21px; left: 50%; width: 100%; height: 2px; background: var(--accent); transform-origin: left; animation: fmline 0.45s calc(var(--i) * 0.45s + 0.55s) backwards; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.chips span { border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; font-size: 13px; background: var(--surface); animation: fmrise 0.5s calc(2.3s + var(--i) * 0.2s) backwards; }
+
+/* scene 3: venue screen */
+.mon { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; }
+.monscr { width: 100%; border: 8px solid var(--ink); border-radius: 10px; background: var(--surface); padding: 18px; display: flex; gap: 18px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.monfoot { width: 90px; height: 10px; background: var(--ink); border-radius: 0 0 6px 6px; }
+.fmqr { width: 150px; height: 150px; background: var(--qr-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--line); line-height: 0; flex: none; }
+.fmqr svg { width: 100%; height: 100%; display: block; animation: fmflash 0.45s; }
+.mr { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.ring2 { width: 64px; height: 64px; position: relative; }
+.ring2 svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+.ring2 circle.a { stroke-dasharray: 150.8; animation: fmring 2.2s linear infinite; }
+.ring2 b { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-mono); font-size: 14px; font-weight: 500; }
+
+/* scenes 4 to 6: phone */
+.fp { width: min(100%, 260px); border: 7px solid var(--ink); border-radius: 26px; background: var(--surface); padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; min-height: 350px; }
+.fpt { font-family: var(--f-display); font-size: 20px; line-height: 1.15; }
+.ff { display: flex; flex-direction: column; gap: 4px; }
+.ff small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.inp { border: 1.5px solid var(--line); background: var(--bg); border-radius: 6px; padding: 9px 10px; font-family: var(--f-mono); font-size: 15px; min-height: 40px; }
+.ty { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; animation-name: fmtype; animation-fill-mode: backwards; }
+.fbtn { margin-top: auto; background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 11px; text-align: center; font-weight: 600; font-size: 14px; }
+.fbtn.press { animation: fmpress 0.3s 3s; }
+.fbtn.press2 { animation: fmpress 0.3s 3.6s; }
+.fmsg { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 9px 10px; font-size: 13px; animation: fmrise 0.5s 3.3s backwards; }
+.dcl { display: flex; gap: 10px; border: 1.5px solid var(--line); border-radius: 6px; padding: 10px; font-size: 12.5px; line-height: 1.4; }
+.cb { width: 20px; height: 20px; border-radius: 4px; background: var(--accent); flex: none; display: grid; place-items: center; animation: fmcb 0.3s 1s backwards; }
+.cb svg { width: 16px; height: 16px; }
+.cb path { fill: none; stroke: var(--accent-ink); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: fmdraw 0.4s 1.05s backwards; }
+.step { display: flex; align-items: center; border: 1.5px solid var(--line); border-radius: 6px; width: fit-content; }
+.step i { font-style: normal; width: 38px; height: 38px; display: grid; place-items: center; font-size: 20px; }
+.step output { min-width: 40px; text-align: center; font-family: var(--f-mono); font-size: 18px; }
+.tick2 { width: 60px; height: 60px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; animation: fmpop 0.5s backwards; }
+.tick2 svg { width: 32px; height: 32px; }
+.tick2 path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: fmdraw 0.5s 0.4s backwards; }
+.fm .receipt { width: 100%; max-width: 300px; background: var(--surface); }
+.fm .receipt dt, .fm .receipt dd { animation: fmrise 0.4s calc(var(--r) * 0.18s + 0.9s) backwards; }
+.stamp { border: 1.5px solid var(--accent); color: var(--accent); border-radius: 99px; padding: 4px 14px; font-size: 13px; font-weight: 600; animation: fmpop 0.4s 2.4s backwards; }
+
+/* scene 7: organiser board */
+.mk { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 14px; }
+.fm .days { height: 150px; }
+.fm .days .bar { transform-origin: bottom; transition: none; animation: fmgrow 0.8s calc(var(--i) * 0.08s + 0.5s) backwards; }
+
+/* scene 8: safeguards */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; width: 100%; max-width: 460px; }
+@media (max-width: 420px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.sc { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; max-width: none; animation: fmrise 0.5s calc(var(--i) * 0.4s) backwards; }
+.clk { width: 56px; height: 56px; }
+.clk .hand { transform-origin: 24px 24px; transform: rotate(270deg); animation: fmspin 1.6s 0.5s ease-out backwards; }
+.big2 { font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1.1; }
+.tagbad { background: var(--bad-soft); color: var(--bad); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; animation: fmpop 0.4s 2s backwards; }
+.idrow { width: 100%; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 12.5px; padding: 8px 10px; border-radius: 6px; }
+.idrow.ok { background: var(--accent-soft); color: var(--accent); animation: fmrise 0.4s 0.8s backwards; }
+.idrow.bad { background: var(--bad-soft); color: var(--bad); animation: fmrise 0.4s 1.8s backwards; }
+.strip { font-size: 13.5px; color: var(--muted); text-align: center; max-width: 460px; animation: fmrise 0.5s 3s backwards; }
+
+/* scene 9: cost and start */
+.costnum { font-family: var(--f-display); font-size: clamp(40px, 8vw, 60px); font-weight: 700; line-height: 1; animation: fmpop 0.6s backwards; }
+.costlist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.costlist li { animation: fmrise 0.4s calc(0.5s + var(--i) * 0.2s) backwards; }
+.costlist li::before { content: "+"; color: var(--accent); font-weight: 700; margin-right: 10px; }
+.ctas { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 280px; animation: fmrise 0.5s 1.2s backwards; }
+
+#replay { align-self: flex-start; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+<style>html{color-scheme:light}body{margin:0}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="tag"><b>Prototype</b> Click through it like a real event day. Numbers marked sample are placeholders.</div>
+    <h1>Hazri: attendance for <span>10,000 people</span>, with no desk.</h1>
+    <p>Attendees scan a live code at the venue, confirm who they are, sign a declaration and enter their guest count. It runs in the phone browser, so there is nothing to install and nobody to staff a sign-in sheet.</p>
+    <button class="btn ghost small" id="replay" type="button">Watch the intro again</button>
+  </header>
+
+  <div class="stage">
+    <section class="panel" aria-labelledby="v-h">
+      <div class="panel-head"><h2 id="v-h">1. Venue screen</h2><span class="label">Day 3 of 8 · Main hall gate A</span></div>
+      <div class="venue">
+        <div class="qrbox" id="qrbox" aria-label="Live attendance QR code"></div>
+        <div class="venue-meta">
+          <div class="countdown">
+            <div class="ring"><svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="24" fill="none" stroke="var(--line)" stroke-width="5"/><circle id="arc" cx="28" cy="28" r="24" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="0"/></svg><div class="n" id="secs">30</div></div>
+            <div><div class="label">Code changes in</div><div class="hint">A new code every 30 seconds</div></div>
+          </div>
+          <div><div class="label">Current token</div><div class="token" id="tok">-</div></div>
+          <div class="urlline" id="url">-</div>
+          <p class="hint">Run this on any laptop or TV at each gate. A photo of the code stops working half a minute later.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="phone-col" aria-labelledby="p-h">
+      <div class="panel-head" style="width:100%;max-width:340px"><h2 id="p-h">2. Attendee phone</h2></div>
+      <div class="phone" id="phone">
+        <div class="pbar"><span>9:41</span><span>hazri.example</span></div>
+        <div class="pbody" id="pbody"></div>
+      </div>
+      <div class="demo-tools">
+        <div class="label">Try to break it</div>
+        <div class="toolrow">
+          <button class="btn ghost small" id="t-forward" type="button">Open forwarded link 45 s later</button>
+          <button class="btn ghost small" id="t-proxy" type="button">Mark a second ID on this phone</button>
+          <button class="btn ghost small" id="t-reset" type="button">Start over</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="b-h">
+    <div class="panel-head"><h2 id="b-h">3. Organiser board</h2><span class="label">Live · day 3 · sample data except your check-ins</span></div>
+    <div class="kpis">
+      <div class="kpi"><span class="label">Checked in today</span><span class="v" id="k-in">0</span><span class="s">of 10,000 invited</span></div>
+      <div class="kpi"><span class="label">Guests with them</span><span class="v" id="k-guest">0</span><span class="s">added at check-in</span></div>
+      <div class="kpi"><span class="label">Meals to prepare</span><span class="v" id="k-meals">0</span><span class="s">attendees + guests + 3% buffer</span></div>
+      <div class="kpi"><span class="label">Flagged for review</span><span class="v" id="k-flag">2</span><span class="s">needs a human look</span></div>
+    </div>
+    <div class="board-grid">
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+        <div class="label">RSVP vs actual, per day</div>
+        <div class="days" id="days"></div>
+        <div class="legend"><span><i style="background:var(--line)"></i>RSVP</span><span><i style="background:var(--accent)"></i>Checked in</span></div>
+        <div class="food" id="food"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+        <div class="label">Latest check-ins</div>
+        <div class="table-scroll"><table><thead><tr><th>Time</th><th>Emp ID</th><th class="num">+Guests</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+        <button class="btn ghost small" id="csv" type="button" style="align-self:flex-start">Copy as CSV</button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="c-h" style="display:flex;flex-direction:column;gap:12px">
+    <h2 id="c-h" style="font-size:22px">How it stops people marking for others</h2>
+    <div class="controls">
+      <div class="ctl"><span class="label">Layer 1</span><h3>Live code, short-lived session</h3><p>The code inside the QR expires in 30 seconds and the form must be submitted within 2 minutes of scanning. A forwarded link opens to "expired".</p><span class="strength">Stops remote proxies</span></div>
+      <div class="ctl"><span class="label">Layer 2</span><h3>One phone, one person, one day</h3><p>After the first check-in, the ID is tied to that phone. A second ID from the same phone is blocked and flagged. A new phone on day 2 goes to a small help desk.</p><span class="strength">Stops one person doing many</span></div>
+      <div class="ctl"><span class="label">Layer 3</span><h3>Signed declaration and spot checks</h3><p>Every record keeps the exact declaration wording, its version and a timestamp. Two or three staff verify a few attendees in the hall each session.</p><span class="strength">Makes it costly to try</span></div>
+    </div>
+    <div class="cost"><b>Rs 0 to 2,000</b><span>Free-tier hosting and database, optional domain, any existing screen at the venue. No SMS fees, no company login needed. The employee list is uploaded once from the existing Excel sheet.</span></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function () {
+  var DAY = 3, TOTAL = 10000, TTL = 30, SESSION_MS = 120000;
+  var DECL_VER = "v1.2";
+  var DECL = "I confirm that I am personally present at the venue today and that I am not marking attendance on behalf of any other person. I understand that a false declaration may lead to disciplinary action.";
+  var DIRECTORY = {
+    "E40217": { name: "R. Menon", last4: "4821" },
+    "E51903": { name: "S. Iyer", last4: "7730" },
+    "E33688": { name: "A. Kulkarni", last4: "1096" },
+    "E60452": { name: "P. Sharma", last4: "5512" }
+  };
+  var rsvp = [9200, 8900, 9100, 8700, 8400, 8800, 8300, 7600];
+  var actual = [8640, 8310, 4126];
+  var guestsBase = 1318;
+  var BASE_IN = 4126;
+
+  var rows = [
+    { t: "09:12", id: "E18420", g: 1, s: "ok" },
+    { t: "09:11", id: "E27761", g: 0, s: "ok" },
+    { t: "09:11", id: "E09934", g: 2, s: "flag" },
+    { t: "09:10", id: "E44102", g: 0, s: "ok" },
+    { t: "09:09", id: "E36015", g: 1, s: "ok" }
+  ];
+  var added = { people: 0, guests: 0, flags: 0 };
+
+  // device binding for the demo phone
+  var deviceBoundTo = null;
+  var checkedIn = {};
+
+  // ---------- token ----------
+  function rand(n) { var c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", s = ""; for (var i = 0; i < n; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
+  var token = rand(6), tokenAt = Date.now();
+  function urlFor(t) { return "https://hazri.example/c/D" + DAY + "-" + t; }
+
+  function drawQR(text) {
+    var box = document.getElementById("qrbox");
+    try {
+      var q = qrcode(0, "M"); q.addData(text); q.make();
+      var n = q.getModuleCount(), m = 2, size = n + m * 2, d = "";
+      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c)) d += "M" + (c + m) + " " + (r + m) + "h1v1h-1z";
+      box.innerHTML = '<svg viewBox="0 0 ' + size + " " + size + '" shape-rendering="crispEdges" role="img" aria-label="QR code"><path d="' + d + '" fill="var(--qr-fg)"/></svg>';
+    } catch (e) {
+      box.innerHTML = '<div style="width:200px;height:200px;display:grid;place-items:center;font:12px monospace;color:var(--qr-fg);line-height:1.4;text-align:center">QR library did not load.<br>Token: ' + token + "</div>";
+    }
+  }
+  function refreshToken() {
+    token = rand(6); tokenAt = Date.now();
+    document.getElementById("tok").textContent = token;
+    document.getElementById("url").textContent = urlFor(token);
+    drawQR(urlFor(token));
+  }
+  var arc = document.getElementById("arc"), secs = document.getElementById("secs");
+  function tick() {
+    var el = (Date.now() - tokenAt) / 1000;
+    if (el >= TTL) { refreshToken(); el = 0; }
+    var left = Math.max(0, TTL - el);
+    secs.textContent = Math.ceil(left);
+    arc.setAttribute("stroke-dashoffset", String(150.8 * (1 - left / TTL)));
+  }
+  refreshToken(); tick(); setInterval(tick, 250);
+
+  // ---------- phone ----------
+  var state = { step: "scan", session: null, id: null, guests: 0, receipt: null, err: "" };
+  var pbody = document.getElementById("pbody");
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function nowStr() { var d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); }
+
+  function render() {
+    var s = state, h = "";
+    if (s.step === "scan") {
+      h = '<span class="label">Day ' + DAY + ' · Mark attendance</span>' +
+        '<h3>Scan the code on the venue screen</h3>' +
+        '<p class="sub">Your phone camera opens this page. In this demo, tap the button to scan the code currently showing on the left.</p>' +
+        '<div style="flex:1"></div>' +
+        '<button class="btn" id="b-scan" type="button">Scan live code</button>' +
+        '<p class="hint">No app needed. No login with your company account.</p>';
+    } else if (s.step === "expired") {
+      h = '<span class="label">Link expired</span><h3>This code is no longer valid</h3>' +
+        '<div class="msg bad">The code in this link changed more than 30 seconds ago. Scan the screen at the venue again.</div>' +
+        '<p class="sub">This is what a friend sees if you forward them the page. They cannot mark attendance from it.</p>' +
+        '<div style="flex:1"></div><button class="btn" id="b-back" type="button">Back to scan</button>';
+    } else if (s.step === "id") {
+      h = '<span class="label">Step 1 of 2 · Who are you</span><h3>Confirm your identity</h3>' +
+        '<div class="field"><label for="f-id">Employee ID</label><input id="f-id" type="text" autocomplete="off" autocapitalize="characters" placeholder="E40217" value="' + esc(s.id || "") + '"></div>' +
+        '<div class="field"><label for="f-ph">Last 4 digits of your registered phone</label><input id="f-ph" type="tel" inputmode="numeric" maxlength="4" placeholder="4821"></div>' +
+        (s.err ? '<div class="msg bad" role="alert">' + esc(s.err) + "</div>" : "") +
+        '<p class="hint">Demo IDs: <code>E40217</code> / <code>4821</code> &nbsp; <code>E51903</code> / <code>7730</code> &nbsp; <code>E33688</code> / <code>1096</code></p>' +
+        '<div style="flex:1"></div><button class="btn" id="b-id" type="button">Continue</button>' +
+        '<p class="hint" id="sess"></p>';
+    } else if (s.step === "decl") {
+      var p = DIRECTORY[s.id];
+      h = '<span class="label">Step 2 of 2 · Declaration</span><h3>Hello, ' + esc(p.name) + '</h3>' +
+        '<label class="check" for="f-ck"><input id="f-ck" type="checkbox"><span>' + esc(DECL) + "</span></label>" +
+        '<div class="field"><label id="gl">How many guests are with you today?</label>' +
+        '<div class="stepper" role="group" aria-labelledby="gl"><button type="button" id="g-dn" aria-label="One fewer">−</button><output id="g-n" aria-live="polite">' + s.guests + '</output><button type="button" id="g-up" aria-label="One more">+</button></div>' +
+        '<span class="hint">Guests are counted for refreshments only.</span></div>' +
+        (s.err ? '<div class="msg bad" role="alert">' + esc(s.err) + "</div>" : "") +
+        '<div style="flex:1"></div><button class="btn" id="b-sub" type="button" disabled>Submit attendance</button>' +
+        '<p class="hint" id="sess"></p>';
+    } else if (s.step === "done") {
+      var r = s.receipt;
+      h = '<div class="tick" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>' +
+        '<h3>Attendance recorded</h3><p class="sub">You can close this page. Tomorrow it is one tap on this phone.</p>' +
+        '<dl class="receipt"><dt>Name</dt><dd>' + esc(r.name) + '</dd><dt>Emp ID</dt><dd>' + esc(r.id) + '</dd><dt>Day</dt><dd>' + DAY + ' of 8</dd><dt>Time</dt><dd>' + r.time + '</dd><dt>Guests</dt><dd>' + r.guests + '</dd><dt>Declaration</dt><dd>' + DECL_VER + ' accepted</dd><dt>Reference</dt><dd>' + r.ref + "</dd></dl>";
+    } else if (s.step === "blocked") {
+      h = '<span class="label">Cannot mark attendance</span><h3>This phone is already used by another employee today</h3>' +
+        '<div class="msg warn">This phone marked attendance for ' + esc(deviceBoundTo) + ". It cannot mark a second person. The attempt was flagged for the organisers.</div>" +
+        '<p class="sub">If you genuinely have no phone or it is not working, go to the help desk at gate B.</p>' +
+        '<div style="flex:1"></div><button class="btn ghost" id="b-back" type="button">Back</button>';
+    }
+    pbody.innerHTML = h;
+    wire();
+  }
+
+  function sessionTimer() {
+    var el = document.getElementById("sess");
+    if (!el || !state.session) return;
+    var left = Math.max(0, Math.ceil((SESSION_MS - (Date.now() - state.session)) / 1000));
+    el.textContent = "Session valid for " + left + " s";
+    if (left === 0 && (state.step === "id" || state.step === "decl")) { state.step = "expired"; render(); }
+  }
+  setInterval(sessionTimer, 500);
+
+  function scan() {
+    state.session = Date.now(); state.err = "";
+    state.step = (deviceBoundTo && !checkedIn[deviceBoundTo]) ? "id" : "id";
+    render();
+  }
+
+  function addRow(id, g, flag) {
+    rows.unshift({ t: nowStr().slice(0, 5), id: id, g: g, s: flag ? "flag" : "ok" });
+    if (rows.length > 8) rows.pop();
+  }
+
+  function submitCheckin() {
+    var ref = "HZ" + DAY + "-" + rand(6), p = DIRECTORY[state.id];
+    checkedIn[state.id] = true; deviceBoundTo = state.id;
+    added.people += 1; added.guests += state.guests;
+    addRow(state.id, state.guests, false);
+    state.receipt = { name: p.name, id: state.id, time: nowStr(), guests: state.guests, ref: ref };
+    state.step = "done"; render(); board();
+  }
+
+  function wire() {
+    function on(id, fn) { var e = document.getElementById(id); if (e) e.addEventListener("click", fn); }
+    on("b-scan", scan);
+    on("b-back", function () { state.step = "scan"; state.err = ""; render(); });
+    on("b-id", function () {
+      var id = document.getElementById("f-id").value.trim().toUpperCase();
+      var ph = document.getElementById("f-ph").value.trim();
+      state.id = id;
+      var p = DIRECTORY[id];
+      if (!p || p.last4 !== ph) { state.err = "These details do not match our list. Check your ID and phone digits."; render(); return; }
+      if (checkedIn[id]) { state.err = id + " has already marked attendance today."; render(); return; }
+      if (deviceBoundTo && deviceBoundTo !== id) {
+        added.flags += 1; addRow(id, 0, true); state.step = "blocked"; render(); board(); return;
+      }
+      state.err = ""; state.step = "decl"; render();
+    });
+    var ck = document.getElementById("f-ck"), sub = document.getElementById("b-sub");
+    if (ck && sub) ck.addEventListener("change", function () { sub.disabled = !ck.checked; });
+    on("g-up", function () { if (state.guests < 10) { state.guests++; document.getElementById("g-n").textContent = state.guests; } });
+    on("g-dn", function () { if (state.guests > 0) { state.guests--; document.getElementById("g-n").textContent = state.guests; } });
+    on("b-sub", function () {
+      if (!ck.checked) return;
+      if (Date.now() - state.session > SESSION_MS) { state.step = "expired"; render(); return; }
+      submitCheckin();
+    });
+    sessionTimer();
+  }
+
+  // ---------- try-to-break tools ----------
+  document.getElementById("t-forward").addEventListener("click", function () { state.step = "expired"; render(); });
+  document.getElementById("t-proxy").addEventListener("click", function () {
+    if (!deviceBoundTo) { state.step = "scan"; state.err = ""; render(); alert_demo("Mark one person first, then try a second ID on the same phone."); return; }
+    state.step = "scan"; render(); scan();
+  });
+  document.getElementById("t-reset").addEventListener("click", function () {
+    state = { step: "scan", session: null, id: null, guests: 0, receipt: null, err: "" };
+    deviceBoundTo = null; checkedIn = {};
+    added = { people: 0, guests: 0, flags: 0 };
+    rows = rows.filter(function (r) { return !r.mine; });
+    rows = [
+      { t: "09:12", id: "E18420", g: 1, s: "ok" }, { t: "09:11", id: "E27761", g: 0, s: "ok" },
+      { t: "09:11", id: "E09934", g: 2, s: "flag" }, { t: "09:10", id: "E44102", g: 0, s: "ok" }, { t: "09:09", id: "E36015", g: 1, s: "ok" }
+    ];
+    render(); board();
+  });
+  function alert_demo(text) {
+    var m = document.createElement("div"); m.className = "msg warn"; m.setAttribute("role", "status"); m.textContent = text;
+    pbody.insertBefore(m, pbody.children[2] || null);
+    setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 4000);
+  }
+
+  // ---------- board ----------
+  function fmt(n) { return n.toLocaleString("en-IN"); }
+  function board() {
+    var inNow = BASE_IN + added.people, gNow = guestsBase + added.guests;
+    var meals = Math.round((inNow + gNow) * 1.03);
+    document.getElementById("k-in").textContent = fmt(inNow);
+    document.getElementById("k-guest").textContent = fmt(gNow);
+    document.getElementById("k-meals").textContent = fmt(meals);
+    document.getElementById("k-flag").textContent = fmt(2 + added.flags);
+    var max = 10000, h = "";
+    for (var i = 0; i < 8; i++) {
+      var a = i < 2 ? actual[i] : (i === 2 ? inNow : null);
+      var rp = rsvp[i] / max * 100;
+      h += '<div class="day" style="--i:' + i + '"><div class="bars"><div class="bar rsvp" style="height:' + rp + '%" title="RSVP ' + fmt(rsvp[i]) + '"></div>' +
+        (a !== null ? '<div class="bar act ' + (i === 2 ? "live" : "") + '" style="height:' + (a / max * 100) + '%" title="Checked in ' + fmt(a) + '"></div>' : '<div class="bar" style="height:0"></div>') +
+        '</div><div class="daylbl ' + (i === 2 ? "now" : "") + '">D' + (i + 1) + "</div></div>";
+    }
+    document.getElementById("days").innerHTML = h;
+    var past = (actual[0] / rsvp[0] + actual[1] / rsvp[1]) / 2;
+    document.getElementById("food").innerHTML =
+      "<div><b>Day 4 catering number:</b> <span class=\"mono\">" + fmt(Math.round(rsvp[3] * past * 1.03 + gNow * 0.9)) + "</span> meals</div>" +
+      '<div class="hint">Based on day 4 RSVPs (' + fmt(rsvp[3]) + ") × the " + Math.round(past * 100) + "% of RSVPs who actually showed up on days 1 and 2, plus expected guests and a 3% buffer.</div>";
+    var tb = "";
+    rows.forEach(function (r) {
+      tb += "<tr><td class=\"mono\">" + r.t + "</td><td class=\"mono\">" + esc(r.id) + "</td><td class=\"num\">" + r.g + "</td><td><span class=\"pill " + (r.s === "ok" ? "ok" : "flag") + "\">" + (r.s === "ok" ? "Verified" : "Review") + "</span></td></tr>";
+    });
+    document.getElementById("rows").innerHTML = tb;
+  }
+  document.getElementById("csv").addEventListener("click", function (e) {
+    var csv = "day,time,employee_id,guests,status,declaration_version\n" + rows.map(function (r) { return [DAY, r.t, r.id, r.g, r.s, DECL_VER].join(","); }).join("\n");
+    var b = e.currentTarget;
+    function done(t) { b.textContent = t; setTimeout(function () { b.textContent = "Copy as CSV"; }, 1800); }
+    try { navigator.clipboard.writeText(csv).then(function () { done("Copied"); }, function () { done("Copy blocked"); }); } catch (x) { done("Copy blocked"); }
+  });
+
+  render(); board();
+
+  // entrance: bars grow and numbers count up once the board scrolls into view
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce) {
+    var daysEl = document.getElementById("days"), kids = ["k-in", "k-guest", "k-meals", "k-flag"];
+    daysEl.classList.add("pre");
+    kids.forEach(function (id) { document.getElementById(id).textContent = "0"; });
+    var started = false;
+    var go = function () {
+      if (started) return; started = true;
+      daysEl.classList.remove("pre");
+      var finals = [BASE_IN + added.people, guestsBase + added.guests, Math.round((BASE_IN + added.people + guestsBase + added.guests) * 1.03), 2 + added.flags];
+      var t0 = performance.now(), dur = 1400;
+      (function step(now) {
+        var p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+        kids.forEach(function (id, i) { document.getElementById(id).textContent = fmt(Math.round(finals[i] * e)); });
+        if (p < 1) requestAnimationFrame(step); else board();
+      })(t0);
+    };
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (es) { if (es[0].isIntersecting) { io.disconnect(); setTimeout(go, 200); } }, { threshold: 0.3 });
+      io.observe(document.querySelector(".kpis"));
+    } else { go(); }
+  }
+})();
+</script>
+<script>
+(function () {
+  var wrap = document.querySelector(".wrap"), body = document.body;
+  body.classList.add("held");
+  try {
+    var reduce = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    var $ = function (id) { return document.getElementById(id); };
+
+    function qr(text) {
+      try {
+        var q = qrcode(0, "M"); q.addData(text); q.make();
+        var n = q.getModuleCount(), m = 2, size = n + m * 2, d = "";
+        for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (q.isDark(r, c)) d += "M" + (c + m) + " " + (r + m) + "h1v1h-1z";
+        return '<svg viewBox="0 0 ' + size + " " + size + '" shape-rendering="crispEdges"><path d="' + d + '" fill="var(--qr-fg)"/></svg>';
+      } catch (e) { return '<div style="font:12px monospace;color:var(--qr-fg);padding:8px">QR</div>'; }
+    }
+    function tickSvg(cls) { return '<svg viewBox="0 0 24 24" class="' + (cls || "") + '"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7"/></svg>'; }
+
+    // ---------- scenes ----------
+    var rowsW = [58, 72, 49, 66, 61, 54, 70], sheet = "", queue = "";
+    rowsW.forEach(function (w, i) {
+      sheet += '<div class="srow" style="--i:' + i + '"><span class="nm" style="width:' + w + '%"></span><svg class="sig" viewBox="0 0 90 22"><path pathLength="1" d="M3 15 C 12 2, 16 20, 25 9 S 40 18, 50 7 S 68 15, 87 10"/></svg></div>';
+    });
+    for (var qi = 0; qi < 16; qi++) queue += '<i style="--q:' + qi + '"></i>';
+
+    var dayBars = "", rs = [92, 89, 91, 87, 84, 88, 83, 76], ac = [86, 83, 41, 0, 0, 0, 0, 0];
+    for (var di = 0; di < 8; di++) {
+      dayBars += '<div class="day" style="--i:' + di + '"><div class="bars"><div class="bar rsvp" style="height:' + rs[di] + '%"></div><div class="bar act" style="height:' + (ac[di] || 0) + '%"></div></div><div class="daylbl">D' + (di + 1) + "</div></div>";
+    }
+    var rec = [["Name", "R. Menon"], ["Emp ID", "E40217"], ["Day", "3 of 8"], ["Time", "09:42:17"], ["Guests", "2"], ["Declaration", "v1.2 accepted"], ["Reference", "HZ3-K7M2QX"]], recHtml = "";
+    rec.forEach(function (r, i) { recHtml += '<dt style="--r:' + i + '">' + r[0] + '</dt><dd style="--r:' + i + '">' + r[1] + "</dd>"; });
+
+    var scenes = [
+      { dur: 6500, label: "The problem", title: "Paper sign-in sheets don't scale",
+        body: "10,000 people over 8 days is about 80,000 signatures. Each one needs a person at a desk, a pen and a queue, and someone has to digitise the sheets afterwards.",
+        html: function () { return '<div class="fm-card"><div class="label">Attendance sheet · Day 3</div>' + sheet + '<div class="queue">' + queue + "<span>queue at the desk</span></div></div>" +
+          '<div class="bignum"><b id="fmn">0</b><span>signatures to collect by hand</span></div>'; },
+        run: function () { anim(400, 3500, function (p) { $("fmn").textContent = Math.round(80000 * (1 - Math.pow(1 - p, 3))).toLocaleString("en-IN"); }); } },
+
+      { dur: 5200, label: "The idea", title: "Attendees do it themselves, from their own phone",
+        body: "A web page that opens from a QR code. No app to install, no company login, no desk to staff. Four quick steps.",
+        html: function () { return '<div class="flow"><div class="node" style="--i:0"><b>1</b><span>Scan the<br>venue code</span></div><div class="node" style="--i:1"><b>2</b><span>Confirm<br>who you are</span></div><div class="node" style="--i:2"><b>3</b><span>Declare and<br>add guests</span></div><div class="node" style="--i:3"><b>4</b><span>Done</span></div></div>' +
+          '<div class="chips"><span style="--i:0">No app</span><span style="--i:1">No company login</span><span style="--i:2">No desk</span></div>'; } },
+
+      { dur: 6500, label: "Step 1 of 4", title: "A live code on the venue screen",
+        body: "A laptop or TV at each gate shows a QR code that changes every 30 seconds. You have to be standing there to scan the current one.",
+        html: function () { return '<div class="mon"><div class="monscr"><div class="fmqr" id="fmqr">' + qr("https://hazri.example/c/D3-K7M2QX") + '</div><div class="mr"><div class="ring2"><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" fill="none" stroke="var(--line)" stroke-width="5"/><circle class="a" cx="28" cy="28" r="24" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/></svg><b>30s</b></div><div><div class="label">Token</div><div class="token" id="fmtok">K7M2QX</div></div></div></div><div class="monfoot"></div></div>' +
+          '<p class="hint">Sped up here. In real life the code changes every 30 seconds.</p>'; },
+        run: function () { var tk = ["K7M2QX", "9TWB4R", "H3DNE8", "Q5ZC2V"]; [2200, 4400].forEach(function (ms, i) { at(ms, function () { $("fmqr").innerHTML = qr("https://hazri.example/c/D3-" + tk[i + 1]); $("fmtok").textContent = tk[i + 1]; }); }); } },
+
+      { dur: 6200, label: "Step 2 of 4", title: "Confirm who you are",
+        body: "Employee ID plus the last 4 digits of the phone number on the HR list. That list is uploaded once from the existing Excel sheet.",
+        html: function () { return '<div class="fp"><span class="label">Day 3 · Mark attendance</span><b class="fpt">Confirm your identity</b>' +
+          '<div class="ff"><small>Employee ID</small><div class="inp"><span class="ty" style="width:6ch;animation-duration:0.9s;animation-delay:0.6s;animation-timing-function:steps(6)">E40217</span></div></div>' +
+          '<div class="ff"><small>Last 4 digits of your registered phone</small><div class="inp"><span class="ty" style="width:4ch;animation-duration:0.6s;animation-delay:1.9s;animation-timing-function:steps(4)">4821</span></div></div>' +
+          '<div class="fbtn press">Continue</div><div class="fmsg">✓ Matched with the employee list</div></div>'; } },
+
+      { dur: 6500, label: "Step 3 of 4", title: "Sign the declaration, add your guests",
+        body: "One tick confirms \"I am personally present and not marking attendance for anyone else\". The same screen asks how many guests came along, for the food count.",
+        html: function () { return '<div class="fp"><span class="label">Day 3 · Declaration</span><b class="fpt">Hello, R. Menon</b>' +
+          '<div class="dcl"><span class="cb">' + tickSvg() + '</span><span>I confirm I am personally present at the venue today and am not marking attendance for anyone else.</span></div>' +
+          '<div class="ff"><small>How many guests are with you today?</small><div class="step"><i>−</i><output id="fmg">0</output><i>+</i></div></div>' +
+          '<div class="fbtn press2">Submit attendance</div></div>'; },
+        run: function () { at(1900, function () { $("fmg").textContent = "1"; }); at(2500, function () { $("fmg").textContent = "2"; }); } },
+
+      { dur: 5200, label: "Step 4 of 4", title: "Done in under a minute",
+        body: "The attendee gets a receipt with a reference number. The exact declaration wording, its version and the time are saved with the record.",
+        html: function () { return '<div class="tick2">' + tickSvg() + '</div><b class="fpt" style="font-size:24px">Attendance recorded</b><dl class="receipt">' + recHtml + '</dl><span class="stamp">Tomorrow: one tap on the same phone</span>'; } },
+
+      { dur: 6200, label: "Behind the scenes", title: "Organisers see it live",
+        body: "Headcount, guests, and a meals number for the caterers, compared with RSVPs day by day. One click exports it to CSV for HR.",
+        html: function () { return '<div class="fm-card" style="max-width:460px"><div class="mk"><div class="kpi"><span class="label">Checked in today</span><span class="v" id="fk1">0</span></div><div class="kpi"><span class="label">Meals to prepare</span><span class="v" id="fk2">0</span></div></div><div class="days">' + dayBars + '</div><div class="legend" style="margin-top:10px"><span><i style="background:var(--line)"></i>RSVP</span><span><i style="background:var(--accent)"></i>Checked in</span></div></div>'; },
+        run: function () {
+          anim(400, 1600, function (p) { var e = 1 - Math.pow(1 - p, 3); $("fk1").textContent = Math.round(4126 * e).toLocaleString("en-IN"); $("fk2").textContent = Math.round(5607 * e).toLocaleString("en-IN"); });
+        } },
+
+      { dur: 6800, label: "Safeguards", title: "Why marking for someone else is hard",
+        body: "A forwarded link expires. One phone can mark one person per day, and a second attempt is blocked and flagged. The signed declaration and a few spot checks do the rest.",
+        html: function () { return '<div class="two"><div class="fm-card sc" style="--i:0"><span class="label">Forwarded link</span><svg class="clk" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="none" stroke="var(--line)" stroke-width="3"/><g class="hand"><line x1="24" y1="24" x2="24" y2="9" stroke="var(--bad)" stroke-width="3" stroke-linecap="round"/></g></svg><span class="big2">45 s later</span><span class="tagbad">Expired</span></div>' +
+          '<div class="fm-card sc" style="--i:1"><span class="label">Same phone, two IDs</span><div class="idrow ok"><span>E40217</span><span>Recorded</span></div><div class="idrow bad"><span>E51903</span><span>Blocked, flagged</span></div></div></div>' +
+          '<p class="strip">Every record keeps the declaration wording, version and time. Two or three staff spot check people in the hall.</p>'; } },
+
+      { dur: 0, label: "The cost", title: "Rs 0 to 2,000 for all 8 days",
+        body: "Free-tier hosting, a screen the venue already has, no SMS fees. Now try the real thing.",
+        html: function () { return '<div class="costnum">Rs 0 – 2,000</div><ul class="costlist"><li style="--i:0">Free-tier hosting and database</li><li style="--i:1">A screen the venue already has</li><li style="--i:2">No SMS fees, no company login</li></ul><div class="ctas"><button class="btn" id="fmgo" type="button">Open the live prototype</button><button class="btn ghost" id="fmagain" type="button">Watch again</button></div>'; },
+        run: function () { $("fmgo").addEventListener("click", close); $("fmagain").addEventListener("click", function () { go(0); }); } }
+    ];
+
+    // ---------- shell ----------
+    var fm = document.createElement("div");
+    fm.className = "fm"; fm.tabIndex = -1;
+    fm.setAttribute("role", "dialog"); fm.setAttribute("aria-label", "Intro: how Hazri works");
+    fm.innerHTML = '<div class="fm-top" id="fmtop"></div><div class="fm-main"><div class="fm-cap" id="fmcap"></div><div class="fm-stage" id="fmstage" aria-live="off"></div></div>' +
+      '<div class="fm-bar"><button class="btn ghost small" id="fmprev" type="button">Back</button><button class="btn ghost small" id="fmplay" type="button">Pause</button><button class="btn ghost small" id="fmnext" type="button">Next</button><span class="fm-count" id="fmcount"></span><span class="sp"></span><button class="btn small" id="fmskip" type="button">Skip intro</button></div>';
+    body.appendChild(fm);
+
+    var top = $("fmtop"), segs = [];
+    scenes.forEach(function (s, i) {
+      var b = document.createElement("button"); b.className = "fm-seg"; b.type = "button";
+      b.setAttribute("aria-label", "Go to scene " + (i + 1) + ": " + s.title);
+      b.innerHTML = "<i></i>"; b.addEventListener("click", function () { go(i); });
+      top.appendChild(b); segs.push(b);
+    });
+
+    // ---------- clock ----------
+    var t = 0, tasks = [], paused = reduce, cur = -1;
+    function at(ms, fn) { tasks.push({ a: ms, d: 0, fn: fn, done: false }); }
+    function anim(ms, d, fn) { tasks.push({ a: ms, d: d, fn: fn, done: false }); }
+    function step() {
+      for (var i = 0; i < tasks.length; i++) {
+        var k = tasks[i]; if (k.done || t < k.a) continue;
+        var p = k.d ? Math.min(1, (t - k.a) / k.d) : 1;
+        k.fn(p); if (p >= 1) k.done = true;
+      }
+    }
+    setInterval(function () {
+      if (fm.hidden || paused || cur < 0) return;
+      t += 40; step();
+      var d = scenes[cur].dur;
+      if (d && t >= d) go(cur + 1);
+    }, 40);
+
+    function setPaused(v) { paused = v; fm.classList.toggle("paused", v); $("fmplay").textContent = v ? "Play" : "Pause"; }
+    function go(i) {
+      if (i < 0 || i >= scenes.length) return;
+      cur = i; t = 0; tasks = [];
+      var s = scenes[i];
+      $("fmstage").innerHTML = s.html();
+      var cap = $("fmcap"), clone = cap.cloneNode(false);
+      clone.innerHTML = '<span class="label">' + s.label + "</span><h2>" + s.title + "</h2><p>" + s.body + "</p>";
+      cap.parentNode.replaceChild(clone, cap);
+      segs.forEach(function (b, j) {
+        b.classList.remove("done", "cur");
+        if (j < i || (j === i && !s.dur)) b.classList.add("done");
+        else if (j === i) { b.style.setProperty("--dur", s.dur + "ms"); b.classList.add("cur"); }
+      });
+      $("fmcount").textContent = (i + 1) + " / " + scenes.length;
+      $("fmprev").disabled = i === 0; $("fmnext").disabled = i === scenes.length - 1;
+      if (s.run) s.run();
+      if (reduce) { t = 1e6; step(); t = 0; }
+    }
+    function open() {
+      wrap.inert = true; wrap.setAttribute("aria-hidden", "true");
+      fm.hidden = false; setPaused(reduce); go(0); fm.focus();
+    }
+    function close() {
+      fm.hidden = true; wrap.inert = false; wrap.removeAttribute("aria-hidden");
+      body.classList.remove("held");
+      var rp = $("replay"); if (rp) rp.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    }
+
+    $("fmprev").addEventListener("click", function () { go(cur - 1); });
+    $("fmnext").addEventListener("click", function () { go(cur + 1); });
+    $("fmplay").addEventListener("click", function () { setPaused(!paused); });
+    $("fmskip").addEventListener("click", close);
+    var rp = $("replay"); if (rp) rp.addEventListener("click", open);
+    document.addEventListener("keydown", function (e) {
+      if (fm.hidden) return;
+      var onBtn = e.target && e.target.tagName === "BUTTON";
+      if (e.key === "ArrowRight") go(cur + 1);
+      else if (e.key === "ArrowLeft") go(cur - 1);
+      else if (e.key === "Escape") close();
+      else if ((e.key === " " || e.key === "k") && !onBtn) { e.preventDefault(); setPaused(!paused); }
+    });
+
+    open();
+  } catch (err) {
+    body.classList.remove("held");
+    wrap.inert = false;
+    var stray = document.querySelector(".fm"); if (stray) stray.hidden = true;
+  }
+})();
+</script>
+</body>
+</html>
